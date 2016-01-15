@@ -31,37 +31,40 @@ module.exports = function(option) {
     option.dir = option.dir || './dist';
 
     function getNewUrl(url, ext) {
-        var paths = url.split('/');
-        var filename = paths.pop();
 
-        ext = ext || filename.split('.').pop();
+        var paths = url.split('/');
+        var filename = paths.pop(); //filename用于组装网址时使用，防止出现?后面参数丢失的情况
+        var filenameArr = filename;	//原filename修改为filenameArr数组变量
+
+        ext = ext || filenameArr.split('.').pop();
 
         var prefix = option.root[ext] || '';
-        prefix && (prefix[prefix.length - 1] === '/' || (prefix += '/'));
-
+        prefix && (prefix[prefix.length - 1] === '/' || (prefix += '/')); //该处建议做兼容处理，防止网址中出现双斜线问题
         paths.unshift(option.dir);
 
         var dir = path.resolve.apply(null, paths);
-
         try {
             var files = fs.readdirSync(dir);
-            filename = filename.split('.');
+            filenameArr = filenameArr.split('.');
 
             var newUrl = url;
+
             files.some(function(item) {
                 item = item.split('.');
-                if (filename[0] === item[0] && filename[filename.length - 1] === item[item.length - 1]) {
+                //filenameArr[filenameArr.length - 1].split('?')[0] 用于获取文件后缀，原方式无法获取123.png?v=xxx中的后缀
+                if (filenameArr[0] === item[0] && filenameArr[filenameArr.length - 1].split('?')[0] === item[item.length - 1]) {
                     paths.shift();
-                    newUrl = prefix + paths.join('/') + '/' + item.join('.');
+                    newUrl = prefix + paths.join('/') + '/' + filename;	//直接跟上文件名，防止?后参数丢失
                     return true;
                 }
             });
 
             // replace multi `/` with single `/`
-            newUrl = newUrl.replace(/(\/)+/g, '/');
+            newUrl = newUrl.replace(/([^:])(\/){2,}/g, '$1/');
 
             return newUrl;
         } catch (e) {
+            //console.log("Error ==== "+url)
             return url;
         }
     }
@@ -74,19 +77,19 @@ module.exports = function(option) {
         // Buffer
         var contents = file.contents.toString();
         contents = contents.replace(jsReg, function(match, url) {
-                isHTTP(url) || (match = match.replace(/src\s*=\s*["|']([^"'>]+)["|']/, 'src="' + getNewUrl(url, 'js') + '"'));
-                return match;
-            })
+            isHTTP(url) || (match = match.replace(/(src\s*=\s*["|'])([^"'>]+)(["|'])/, '$1' + getNewUrl(url, 'js') + '$3'));	//使用分组替换，防止对原文件侵染
+            return match;
+        })
             .replace(imageReg, function(match, url) {
-                isHTTP(url) || (match = match.replace(/src\s*=\s*["|']([^"'>]+)["|']/, 'src="' + getNewUrl(url, 'image') + '"'));
+                isHTTP(url) || (match = match.replace(/(src\s*=\s*["|'])([^"'>]+)(["|'])/, '$1' + getNewUrl(url, 'image') + '$3'));	//使用分组替换，防止对原文件侵染
                 return match;
             })
             .replace(cssReg, function(match, url) {
-                isHTTP(url) || (isCss(match) && (match = match.replace(/href\s*=\s*["|']([^"']+)["|']/, 'href="' + getNewUrl(url, 'css') + '"')));
+                isHTTP(url) || (isCss(match) && (match = match.replace(/(href\s*=\s*["|'])([^"']+)(["|'])/, '$1' + getNewUrl(url, 'css') + '$3')));	//使用分组替换，防止对原文件侵染
                 return match;
             })
             .replace(imgReg, function(match, url) {
-                isHTTP(url) || isBase64(url) || (match = match.replace(/url\s*\(\s*['|"]?([^'")]+)['|"]?\s*\)/, 'url("' + getNewUrl(url, 'css') + '")'));
+                isHTTP(url) || isBase64(url) || (match = match.replace(/(url\s*\(\s*['|"]?)([^'")]+)(['|"]?\s*\))/, '$1' + getNewUrl(url, 'css') + '$3'));	//使用分组替换，防止对原文件侵染
                 return match;
             });
 
