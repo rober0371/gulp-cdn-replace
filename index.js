@@ -8,24 +8,24 @@ var through = require('through2');
 
 var jsReg = /<\s*script\s+.*src\s*=\s*["|']([^"']+)[^>]*><\s*\/\s*script\s*>/gim;
 var cssReg = /<\s*link\s+.*href\s*=\s*["|']([^"']+)[^>]*>/gim;
-var imageReg = /<\s*img\s+.*src\s*=\s*["|']([^"']+)[^>]*>/gim;
+var imageReg = /<img[^>]+src\s*=\s*['"]([^'"]+)['"][^>]*>/gim;
 var imgReg = /url\s*\(\s*['|"]?([^'")]+)['|"]?\s*\)/gim;
 var base64Reg = /^data:image\/([^;]+);base64,/;
 
-var isCss = function(str) {
+var isCss = function (str) {
     if (!str) return false;
     return /rel\s*=\s*["|']stylesheet["|']/.test(String(str));
 };
-var isHTTP = function(str) {
+var isHTTP = function (str) {
     if (!str) return false;
     return /^https?:/.test(String(str));
 };
-var isBase64 = function(str) {
+var isBase64 = function (str) {
     if (!str) return false;
     return base64Reg.test(str);
 };
 
-module.exports = function(option) {
+module.exports = function (option) {
     option = option || {};
     option.root = option.root || {};
     option.dir = option.dir || './dist';
@@ -49,7 +49,7 @@ module.exports = function(option) {
 
             var newUrl = url;
 
-            files.some(function(item) {
+            files.some(function (item) {
                 item = item.split('.');
                 //filenameArr[filenameArr.length - 1].split('?')[0] 用于获取文件后缀，原方式无法获取123.png?v=xxx中的后缀
                 if (filenameArr[0] === item[0] && filenameArr[filenameArr.length - 1].split('?')[0] === item[item.length - 1]) {
@@ -61,7 +61,7 @@ module.exports = function(option) {
 
             // replace multi `/` with single `/`
             newUrl = newUrl.replace(/([^:])(\/){2,}/g, '$1/');
-
+            //console.log("Ok ==== "+newUrl)
             return newUrl;
         } catch (e) {
             //console.log("Error ==== "+url)
@@ -69,29 +69,29 @@ module.exports = function(option) {
         }
     }
 
-    return through.obj(function(file, enc, fn) {
+    return through.obj(function (file, enc, fn) {
         if (file.isNull()) return fn(null, file);
 
         if (file.isStream()) return fn(new gutil.PluginError('gulp-cdn-replace', 'Streaming is not supported'));
 
         // Buffer
         var contents = file.contents.toString();
-        contents = contents.replace(jsReg, function(match, url) {
+        contents = contents.replace(jsReg, function (match, url) {
             isHTTP(url) || (match = match.replace(/(src\s*=\s*["|'])([^"'>]+)(["|'])/, '$1' + getNewUrl(url, 'js') + '$3'));	//使用分组替换，防止对原文件侵染
             return match;
         })
-            .replace(imageReg, function(match, url) {
-                isHTTP(url) || (match = match.replace(/(src\s*=\s*["|'])([^"'>]+)(["|'])/, '$1' + getNewUrl(url, 'image') + '$3'));	//使用分组替换，防止对原文件侵染
-                return match;
-            })
-            .replace(cssReg, function(match, url) {
-                isHTTP(url) || (isCss(match) && (match = match.replace(/(href\s*=\s*["|'])([^"']+)(["|'])/, '$1' + getNewUrl(url, 'css') + '$3')));	//使用分组替换，防止对原文件侵染
-                return match;
-            })
-            .replace(imgReg, function(match, url) {
-                isHTTP(url) || isBase64(url) || (match = match.replace(/(url\s*\(\s*['|"]?)([^'")]+)(['|"]?\s*\))/, '$1' + getNewUrl(url, 'css') + '$3'));	//使用分组替换，防止对原文件侵染
-                return match;
-            });
+        .replace(imageReg, function (match, url) {
+            isHTTP(url) || (match = match.replace(/(src\s*=\s*["|'])([^"'>]+)(["|'])/, '$1' + getNewUrl(url, 'image') + '$3'));	//使用分组替换，防止对原文件侵染
+            return match;
+        })
+        .replace(cssReg, function (match, url) {
+            isHTTP(url) || (isCss(match) && (match = match.replace(/(href\s*=\s*["|'])([^"']+)(["|'])/, '$1' + getNewUrl(url, 'css') + '$3')));	//使用分组替换，防止对原文件侵染
+            return match;
+        })
+        .replace(imgReg, function (match, url) {
+            isHTTP(url) || isBase64(url) || (match = match.replace(/(url\s*\(\s*['|"]?)([^'")]+)(['|"]?\s*\))/, '$1' + getNewUrl(url, 'css') + '$3'));	//使用分组替换，防止对原文件侵染
+            return match;
+        });
 
         file.contents = new Buffer(contents);
         this.push(file);
